@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { MarkdownPreview } from './components/MarkdownPreview'
 
 const initialMarkdown = `# Project notes
 
@@ -29,7 +30,7 @@ console.log(status)
 
 function App(): React.JSX.Element {
   const [markdown, setMarkdown] = useState(initialMarkdown)
-  const [isDark, setIsDark] = useState(true)
+  const [isDark, setIsDark] = useState(false)
   const [showEditor, setShowEditor] = useState(true)
   const [showPreview, setShowPreview] = useState(true)
 
@@ -139,58 +140,17 @@ function App(): React.JSX.Element {
         )}
 
         {showPreview && (
-          <section className="panel preview-panel" aria-label="Static Markdown preview">
+          <section className="panel preview-panel" aria-label="Live Markdown preview">
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">PREVIEW</p>
-                <h1>Project notes</h1>
+                <h1>Live preview</h1>
               </div>
-              <span className="panel-badge">Static example</span>
+              <span className="panel-badge">Rendered from source</span>
             </div>
             <article className="document-preview">
-              <p className="document-kicker">Writing space / 01</p>
-              <h1>Project notes</h1>
-              <p>
-                This is a quiet space for writing <strong>clear, focused Markdown</strong>.
-              </p>
-              <h2>Today</h2>
-              <ul>
-                <li>Capture the idea</li>
-                <li>Shape the outline</li>
-                <li>Keep the next step visible</li>
-              </ul>
-              <ol>
-                <li>Draft the first pass</li>
-                <li>Review the structure</li>
-              </ol>
-              <blockquote>Good notes make future work easier.</blockquote>
-              <p>
-                Try <code>inline code</code> when naming a command or a file.
-              </p>
-              <pre>
-                <code>{`const status = 'draft'\nconsole.log(status)`}</code>
-              </pre>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Owner</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Outline</td>
-                    <td>Ready</td>
-                    <td>You</td>
-                  </tr>
-                  <tr>
-                    <td>Draft</td>
-                    <td>In progress</td>
-                    <td>You</td>
-                  </tr>
-                </tbody>
-              </table>
+              <p className="document-kicker">Writing space / live</p>
+              <MarkdownPreview markdown={markdown} />
             </article>
           </section>
         )}
