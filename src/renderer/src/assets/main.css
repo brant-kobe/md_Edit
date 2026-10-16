@@ -42,6 +42,14 @@ button {
   --muted: #8d98a3;
   --accent: #90b9a4;
   --code: #101316;
+  --syntax-heading: #9ec5ff;
+  --syntax-marker: #c4a7ff;
+  --syntax-strong: #f0c674;
+  --syntax-emphasis: #d49ac5;
+  --syntax-inline-code: #8ecf9e;
+  --syntax-link: #8ec9f7;
+  --syntax-fence: #8d98a3;
+  --syntax-code-text: #c7d0d8;
   height: 100%;
   display: grid;
   grid-template-rows: 72px minmax(0, 1fr) 36px;
@@ -62,6 +70,14 @@ button {
   --muted: #68746d;
   --accent: #3c7656;
   --code: #edf1ee;
+  --syntax-heading: #1f5f9a;
+  --syntax-marker: #7048a8;
+  --syntax-strong: #9b5c00;
+  --syntax-emphasis: #9a3d75;
+  --syntax-inline-code: #2d7a46;
+  --syntax-link: #1e6091;
+  --syntax-fence: #68746d;
+  --syntax-code-text: #304038;
   color-scheme: light;
 }
 
@@ -235,21 +251,88 @@ button {
   font-size: 10px;
 }
 
+.editor-surface {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.syntax-layer,
 .editor-input {
+  box-sizing: border-box;
+  padding: 26px 28px 34px;
+  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 13px;
+  line-height: 1.8;
+  tab-size: 2;
+  white-space: pre;
+}
+
+.syntax-layer {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  min-width: max-content;
+  min-height: 100%;
+  margin: 0;
+  color: var(--text);
+  pointer-events: none;
+}
+
+.syntax-heading {
+  color: var(--syntax-heading);
+  font-weight: 700;
+}
+
+.syntax-marker {
+  color: var(--syntax-marker);
+  font-weight: 700;
+}
+
+.syntax-strong {
+  color: var(--syntax-strong);
+  font-weight: 700;
+}
+
+.syntax-emphasis {
+  color: var(--syntax-emphasis);
+}
+
+.syntax-inline-code {
+  color: var(--syntax-inline-code);
+}
+
+.syntax-link {
+  color: var(--syntax-link);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--syntax-link) 45%, transparent);
+}
+
+.syntax-fence {
+  color: var(--syntax-fence);
+}
+
+.syntax-code-line {
+  color: var(--syntax-code-text);
+}
+
+.editor-input {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   min-height: 0;
   resize: none;
   border: 0;
   outline: 0;
-  padding: 26px 28px 34px;
-  color: var(--text);
-  background: var(--surface);
+  overflow: auto;
+  color: transparent;
+  background: transparent;
   caret-color: var(--accent);
-  font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  font-size: 13px;
-  line-height: 1.8;
-  tab-size: 2;
+  -webkit-text-fill-color: transparent;
 }
 
 .editor-input::selection {
@@ -320,6 +403,18 @@ button {
   border-radius: 6px;
   background: var(--code);
   line-height: 1.6;
+}
+
+.document-preview .code-language {
+  display: block;
+  margin: -2px 0 10px;
+  color: var(--muted);
+  font-family: Inter, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: lowercase;
 }
 
 .document-preview pre code {

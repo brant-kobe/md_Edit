@@ -112,7 +112,8 @@ function parseBlocks(markdown: string): ReactNode[] {
       }
       if (index < lines.length) index += 1
       blocks.push(
-        <pre key={key++}>
+        <pre key={key++} className="code-block">
+          {fence[2] && <span className="code-language">{fence[2]}</span>}
           <code className={fence[2] ? `language-${fence[2]}` : undefined}>
             {codeLines.join('\n')}
           </code>

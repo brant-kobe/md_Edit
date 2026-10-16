@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { MarkdownEditor } from './components/MarkdownEditor'
 import { MarkdownPreview } from './components/MarkdownPreview'
 
 const initialMarkdown = `# Project notes
@@ -127,15 +128,9 @@ function App(): React.JSX.Element {
                 <p className="eyebrow">SOURCE</p>
                 <h1>Write in Markdown</h1>
               </div>
-              <span className="panel-badge">Plain text</span>
+              <span className="panel-badge">Syntax highlighted</span>
             </div>
-            <textarea
-              className="editor-input"
-              value={markdown}
-              onChange={(event) => setMarkdown(event.target.value)}
-              spellCheck={false}
-              aria-label="Markdown source text"
-            />
+            <MarkdownEditor value={markdown} onChange={setMarkdown} />
           </section>
         )}
 
