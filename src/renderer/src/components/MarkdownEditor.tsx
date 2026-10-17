@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react'
+import type { KeyboardEvent } from 'react'
 
 type MarkdownEditorProps = {
   value: string
@@ -107,6 +108,44 @@ function highlightMarkdown(markdown: string): React.ReactNode[] {
   })
 }
 
+function getAutoIndent(source: string, position: number): string {
+  const lineStart = source.lastIndexOf('\n', position - 1) + 1
+  const linePrefix = source.slice(lineStart, position)
+  const leadingWhitespace = /^[\t ]*/.exec(linePrefix)?.[0] ?? ''
+
+  const quote = /^([\t ]*>)[\t ]?/.exec(linePrefix)
+  const quotePrefix = quote ? `${quote[1]} ` : ''
+  const content = quote ? linePrefix.slice(quote[0].length) : linePrefix
+  const list = /^([\t ]*)([-+*]|\d+[.)])([\t ]+)/.exec(content)
+
+  if (list) {
+    return `${quotePrefix}${list[1]}${' '.repeat(list[2].length + list[3].length)}`
+  }
+
+  return quotePrefix || leadingWhitespace
+}
+
+function insertIndentedNewline(
+  event: KeyboardEvent<HTMLTextAreaElement>,
+  value: string,
+  onChange: (value: string) => void
+): void {
+  if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+
+  const textarea = event.currentTarget
+  const { selectionStart, selectionEnd } = textarea
+  const indent = getAutoIndent(value, selectionStart)
+  const nextValue = `${value.slice(0, selectionStart)}\n${indent}${value.slice(selectionEnd)}`
+  const nextCaret = selectionStart + 1 + indent.length
+
+  event.preventDefault()
+  onChange(nextValue)
+
+  requestAnimationFrame(() => {
+    textarea.setSelectionRange(nextCaret, nextCaret)
+  })
+}
+
 export function MarkdownEditor({ value, onChange }: MarkdownEditorProps): React.ReactNode {
   const [scrollOffset, setScrollOffset] = useState({ top: 0, left: 0 })
 
@@ -123,6 +162,7 @@ export function MarkdownEditor({ value, onChange }: MarkdownEditorProps): React.
         className="editor-input"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => insertIndentedNewline(event, value, onChange)}
         onScroll={(event) =>
           setScrollOffset({
             top: event.currentTarget.scrollTop,

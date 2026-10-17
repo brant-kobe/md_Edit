@@ -369,7 +369,18 @@ button {
 .document-preview ul,
 .document-preview ol {
   margin: 0 0 22px;
-  padding-left: 22px;
+  padding-left: 1.65em;
+  list-style-position: outside;
+}
+
+.document-preview li > ul,
+.document-preview li > ol {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+.document-preview li + li {
+  margin-top: 4px;
 }
 
 .document-preview li::marker {

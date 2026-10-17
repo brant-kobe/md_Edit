@@ -78,11 +78,119 @@ function isBlockStart(line: string, nextLine?: string): boolean {
     /^\s{0,3}(#{1,6})\s+/.test(line) ||
     /^\s{0,3}(```|~~~)/.test(line) ||
     /^\s{0,3}>/.test(line) ||
-    /^\s{0,3}[-*+]\s+/.test(line) ||
-    /^\s{0,3}\d+[.)]\s+/.test(line) ||
+    /^[\t ]*[-*+]\s+/.test(line) ||
+    /^[\t ]*\d+[.)]\s+/.test(line) ||
     /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line) ||
     (nextLine !== undefined && line.includes('|') && isTableSeparator(nextLine))
   )
+}
+
+type ListItem = {
+  marker: string
+  content: string
+  children: ListItem[]
+}
+
+type ListStackEntry = {
+  indent: number
+  item: ListItem
+}
+
+type ParsedList = {
+  items: ListItem[]
+  ordered: boolean
+  nextIndex: number
+}
+
+const listLinePattern = /^([\t ]*)([-*+]|\d+[.)])\s+(.+)$/
+
+function getIndentWidth(whitespace: string): number {
+  return whitespace.replace(/\t/g, '  ').length
+}
+
+function isOrderedListItem(item: ListItem): boolean {
+  return /^\d/.test(item.marker)
+}
+
+function parseList(lines: string[], startIndex: number): ParsedList | null {
+  const firstMatch = listLinePattern.exec(lines[startIndex])
+  if (!firstMatch) return null
+
+  const rootIndent = getIndentWidth(firstMatch[1])
+  const items: ListItem[] = []
+  const stack: ListStackEntry[] = []
+  let index = startIndex
+
+  while (index < lines.length) {
+    const match = listLinePattern.exec(lines[index])
+    if (!match) break
+
+    const indent = getIndentWidth(match[1])
+    if (indent < rootIndent) break
+
+    const item: ListItem = {
+      marker: match[2],
+      content: match[3],
+      children: []
+    }
+
+    while (stack.length > 0 && indent <= stack[stack.length - 1].indent) {
+      stack.pop()
+    }
+
+    if (indent === rootIndent || stack.length === 0) {
+      items.push(item)
+    } else {
+      stack[stack.length - 1].item.children.push(item)
+    }
+
+    stack.push({ indent, item })
+    index += 1
+  }
+
+  return {
+    items,
+    ordered: isOrderedListItem(items[0]),
+    nextIndex: index
+  }
+}
+
+function renderNestedLists(items: ListItem[], keyPrefix: string): ReactNode[] {
+  const groups: Array<{ ordered: boolean; items: ListItem[] }> = []
+
+  for (const item of items) {
+    const ordered = isOrderedListItem(item)
+    const group = groups[groups.length - 1]
+    if (group && group.ordered === ordered) {
+      group.items.push(item)
+    } else {
+      groups.push({ ordered, items: [item] })
+    }
+  }
+
+  return groups.map((group, index) =>
+    renderList(group.items, group.ordered, `${keyPrefix}-nested-${index}`)
+  )
+}
+
+function renderList(items: ListItem[], ordered: boolean, keyPrefix: string): ReactNode {
+  const renderedItems = items.map((item, index) => (
+    <li key={`${keyPrefix}-item-${index}`}>
+      {renderInline(item.content)}
+      {renderNestedLists(item.children, `${keyPrefix}-item-${index}`)}
+    </li>
+  ))
+
+  if (ordered) {
+    const firstNumber = Number.parseInt(items[0].marker, 10)
+    return (
+      <ol key={keyPrefix} start={Number.isNaN(firstNumber) ? 1 : firstNumber}>
+        {renderedItems}
+      </ol>
+    )
+  }
+
+  return <ul key={keyPrefix}>{renderedItems}</ul>
 }
 
 function parseBlocks(markdown: string): ReactNode[] {
@@ -146,27 +254,10 @@ function parseBlocks(markdown: string): ReactNode[] {
       continue
     }
 
-    const unorderedItem = /^\s{0,3}[-*+]\s+(.+)$/.exec(line)
-    const orderedItem = /^\s{0,3}\d+[.)]\s+(.+)$/.exec(line)
-    if (unorderedItem || orderedItem) {
-      const ordered = Boolean(orderedItem)
-      const items: string[] = []
-      while (index < lines.length) {
-        const item = ordered
-          ? /^\s{0,3}\d+[.)]\s+(.+)$/.exec(lines[index])
-          : /^\s{0,3}[-*+]\s+(.+)$/.exec(lines[index])
-        if (!item) break
-        items.push(item[1])
-        index += 1
-      }
-      const List = ordered ? 'ol' : 'ul'
-      blocks.push(
-        <List key={key++}>
-          {items.map((item, itemIndex) => (
-            <li key={itemIndex}>{renderInline(item)}</li>
-          ))}
-        </List>
-      )
+    const parsedList = parseList(lines, index)
+    if (parsedList) {
+      blocks.push(renderList(parsedList.items, parsedList.ordered, `list-${key++}`))
+      index = parsedList.nextIndex
       continue
     }
 
