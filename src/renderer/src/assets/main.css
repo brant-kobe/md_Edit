@@ -501,6 +501,18 @@ button {
   background: var(--accent);
 }
 
+.status-dot.is-dirty {
+  background: #c58a38;
+}
+
+.operation-status.error {
+  color: #c45c5c;
+}
+
+.operation-status.success {
+  color: var(--accent);
+}
+
 @media (max-width: 900px) {
   .topbar {
     padding: 0 18px;

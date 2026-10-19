@@ -1,8 +1,10 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
+import type { AppVersions, MarkdownFileApi } from '../shared/file-api'
 
 declare global {
   interface Window {
-    electron: ElectronAPI
-    api: unknown
+    api: {
+      markdownFile: MarkdownFileApi
+      versions: AppVersions
+    }
   }
 }

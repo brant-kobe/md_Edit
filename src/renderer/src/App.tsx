@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { SaveMarkdownFileResult } from '../../shared/file-api'
 import { MarkdownEditor } from './components/MarkdownEditor'
 import { MarkdownPreview } from './components/MarkdownPreview'
 
@@ -31,6 +32,14 @@ console.log(status)
 
 function App(): React.JSX.Element {
   const [markdown, setMarkdown] = useState(initialMarkdown)
+  const [savedMarkdown, setSavedMarkdown] = useState(initialMarkdown)
+  const [filePath, setFilePath] = useState<string | null>(null)
+  const [fileName, setFileName] = useState('Untitled document')
+  const [isBusy, setIsBusy] = useState(false)
+  const [operationStatus, setOperationStatus] = useState<{
+    kind: 'success' | 'error' | 'neutral'
+    message: string
+  }>({ kind: 'neutral', message: 'Local draft · Not saved to disk' })
   const [isDark, setIsDark] = useState(false)
   const [showEditor, setShowEditor] = useState(true)
   const [showPreview, setShowPreview] = useState(true)
@@ -41,7 +50,94 @@ function App(): React.JSX.Element {
   }, [markdown])
 
   const characterCount = markdown.length
+  const isDirty = markdown !== savedMarkdown
+  const statusMessage =
+    operationStatus.kind === 'error'
+      ? operationStatus.message
+      : isDirty
+        ? 'Unsaved changes'
+        : operationStatus.message
   const panelCount = Number(showEditor) + Number(showPreview)
+
+  const setOperationError = (error: unknown, fallback: string): void => {
+    const message = error instanceof Error ? error.message : fallback
+    setOperationStatus({ kind: 'error', message: `${fallback}: ${message}` })
+  }
+
+  const handleNew = async (): Promise<void> => {
+    if (isBusy) return
+    if (isDirty && !window.confirm('当前文档有未保存的修改，确定要新建空白文档吗？')) return
+
+    setIsBusy(true)
+    setOperationStatus({ kind: 'neutral', message: '正在新建文档…' })
+    try {
+      await window.api.markdownFile.newDocument()
+      setMarkdown('')
+      setSavedMarkdown('')
+      setFilePath(null)
+      setFileName('Untitled document')
+      setOperationStatus({ kind: 'success', message: '已新建空白文档 · 尚未保存' })
+    } catch (error) {
+      setOperationError(error, '新建文档失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  const handleOpen = async (): Promise<void> => {
+    if (isBusy) return
+    if (isDirty && !window.confirm('当前文档有未保存的修改，确定要打开其他文件吗？')) return
+
+    setIsBusy(true)
+    setOperationStatus({ kind: 'neutral', message: '正在打开文件…' })
+    try {
+      const result = await window.api.markdownFile.open()
+      if (result.canceled) {
+        setOperationStatus({ kind: 'neutral', message: '已取消打开' })
+        return
+      }
+
+      setMarkdown(result.content)
+      setSavedMarkdown(result.content)
+      setFilePath(result.path)
+      setFileName(result.fileName)
+      setOperationStatus({ kind: 'success', message: '文件已打开 · 已保存' })
+    } catch (error) {
+      setOperationError(error, '打开文件失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  const handleSaveResult = (result: SaveMarkdownFileResult, content: string): void => {
+    if (result.canceled) {
+      setOperationStatus({ kind: 'neutral', message: '已取消保存' })
+      return
+    }
+
+    setFilePath(result.path)
+    setFileName(result.fileName)
+    setSavedMarkdown(content)
+    setOperationStatus({ kind: 'success', message: '已保存到磁盘' })
+  }
+
+  const handleSave = async (): Promise<void> => {
+    if (isBusy) return
+
+    const content = markdown
+    setIsBusy(true)
+    setOperationStatus({ kind: 'neutral', message: '正在保存…' })
+    try {
+      const result = filePath
+        ? await window.api.markdownFile.save(content)
+        : await window.api.markdownFile.saveAs(content, 'Untitled.md')
+      handleSaveResult(result, content)
+    } catch (error) {
+      setOperationError(error, '保存文件失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
 
   const togglePanel = (panel: 'editor' | 'preview'): void => {
     if (
@@ -72,8 +168,19 @@ function App(): React.JSX.Element {
           <button
             className="toolbar-button"
             type="button"
-            disabled
-            title="File opening will be added in a later stage"
+            onClick={() => void handleNew()}
+            disabled={isBusy}
+            title="Create a new blank Markdown file"
+          >
+            <span aria-hidden="true">＋</span>
+            New
+          </button>
+          <button
+            className="toolbar-button"
+            type="button"
+            onClick={() => void handleOpen()}
+            disabled={isBusy}
+            title="Open a Markdown file"
           >
             <span aria-hidden="true">↥</span>
             Open
@@ -81,8 +188,9 @@ function App(): React.JSX.Element {
           <button
             className="toolbar-button"
             type="button"
-            disabled
-            title="File saving will be added in a later stage"
+            onClick={() => void handleSave()}
+            disabled={isBusy}
+            title="Save the current Markdown file"
           >
             <span aria-hidden="true">⇩</span>
             Save
@@ -130,7 +238,7 @@ function App(): React.JSX.Element {
               </div>
               <span className="panel-badge">Syntax highlighted</span>
             </div>
-            <MarkdownEditor value={markdown} onChange={setMarkdown} />
+            <MarkdownEditor value={markdown} onChange={setMarkdown} readOnly={isBusy} />
           </section>
         )}
 
@@ -157,13 +265,15 @@ function App(): React.JSX.Element {
 
       <footer className="statusbar">
         <div className="status-document">
-          <span className="status-dot" aria-hidden="true" />
-          <span>Untitled document</span>
+          <span className={`status-dot ${isDirty ? 'is-dirty' : ''}`} aria-hidden="true" />
+          <span title={filePath ?? undefined}>{fileName}</span>
         </div>
         <div className="status-metrics">
           <span>{wordCount} words</span>
           <span>{characterCount} characters</span>
-          <span>Local draft · Not saved to disk</span>
+          <span className={`operation-status ${operationStatus.kind}`} role="status">
+            {statusMessage}
+          </span>
         </div>
       </footer>
     </main>

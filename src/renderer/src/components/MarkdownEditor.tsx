@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react'
 type MarkdownEditorProps = {
   value: string
   onChange: (value: string) => void
+  readOnly?: boolean
 }
 
 function renderInlineSyntax(source: string): React.ReactNode[] {
@@ -146,7 +147,11 @@ function insertIndentedNewline(
   })
 }
 
-export function MarkdownEditor({ value, onChange }: MarkdownEditorProps): React.ReactNode {
+export function MarkdownEditor({
+  value,
+  onChange,
+  readOnly = false
+}: MarkdownEditorProps): React.ReactNode {
   const [scrollOffset, setScrollOffset] = useState({ top: 0, left: 0 })
 
   return (
@@ -170,6 +175,7 @@ export function MarkdownEditor({ value, onChange }: MarkdownEditorProps): React.
           })
         }
         spellCheck={false}
+        readOnly={readOnly}
         wrap="off"
         aria-label="Markdown source text"
       />
