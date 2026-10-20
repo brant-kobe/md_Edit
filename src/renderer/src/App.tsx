@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { SaveMarkdownFileResult } from '../../shared/file-api'
 import { MarkdownEditor } from './components/MarkdownEditor'
 import { MarkdownPreview } from './components/MarkdownPreview'
@@ -58,6 +58,10 @@ function App(): React.JSX.Element {
         ? 'Unsaved changes'
         : operationStatus.message
   const panelCount = Number(showEditor) + Number(showPreview)
+
+  useEffect(() => {
+    window.api.markdownFile.updateDocument(markdown, isDirty, fileName)
+  }, [markdown, isDirty, fileName])
 
   const setOperationError = (error: unknown, fallback: string): void => {
     const message = error instanceof Error ? error.message : fallback
@@ -139,6 +143,23 @@ function App(): React.JSX.Element {
     }
   }
 
+  const handleSaveAs = async (): Promise<void> => {
+    if (isBusy) return
+
+    const content = markdown
+    const defaultFileName = filePath ? fileName : 'Untitled.md'
+    setIsBusy(true)
+    setOperationStatus({ kind: 'neutral', message: '正在另存为…' })
+    try {
+      const result = await window.api.markdownFile.saveAs(content, defaultFileName)
+      handleSaveResult(result, content)
+    } catch (error) {
+      setOperationError(error, '另存为失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
   const togglePanel = (panel: 'editor' | 'preview'): void => {
     if (
       panelCount === 1 &&
@@ -194,6 +215,16 @@ function App(): React.JSX.Element {
           >
             <span aria-hidden="true">⇩</span>
             Save
+          </button>
+          <button
+            className="toolbar-button"
+            type="button"
+            onClick={() => void handleSaveAs()}
+            disabled={isBusy}
+            title="Save the current Markdown file to a new path"
+          >
+            <span aria-hidden="true">⇩</span>
+            Save As
           </button>
           <span className="toolbar-divider" aria-hidden="true" />
           <button

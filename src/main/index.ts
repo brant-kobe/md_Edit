@@ -13,9 +13,14 @@ const NEW_MARKDOWN_FILE_CHANNEL = 'markdown-file:new'
 const OPEN_MARKDOWN_FILE_CHANNEL = 'markdown-file:open'
 const SAVE_MARKDOWN_FILE_CHANNEL = 'markdown-file:save'
 const SAVE_AS_MARKDOWN_FILE_CHANNEL = 'markdown-file:save-as'
+const UPDATE_DOCUMENT_CHANNEL = 'markdown-file:update-document'
 
 let mainWindow: BrowserWindow | null = null
 let currentFilePath: string | null = null
+let currentContent = ''
+let currentIsDirty = false
+let currentFileName = 'Untitled.md'
+let closeApproved = false
 
 function assertTrustedSender(event: Electron.IpcMainInvokeEvent): void {
   if (!mainWindow || event.sender !== mainWindow.webContents) {
@@ -38,9 +43,23 @@ function ensureMarkdownExtension(filePath: string): string {
 }
 
 function registerFileHandlers(): void {
+  ipcMain.on(
+    UPDATE_DOCUMENT_CHANNEL,
+    (event, content: unknown, isDirty: unknown, fileName: unknown) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return
+      if (typeof content !== 'string' || typeof fileName !== 'string') return
+      if (typeof isDirty !== 'boolean') return
+      currentContent = content
+      currentIsDirty = isDirty
+      currentFileName = fileName
+    }
+  )
   ipcMain.handle(NEW_MARKDOWN_FILE_CHANNEL, (event): NewMarkdownFileResult => {
     assertTrustedSender(event)
     currentFilePath = null
+    currentContent = ''
+    currentIsDirty = false
+    currentFileName = 'Untitled.md'
     return { canceled: false }
   })
 
@@ -59,6 +78,9 @@ function registerFileHandlers(): void {
     const filePath = result.filePaths[0]
     const content = await fs.readFile(filePath, 'utf8')
     currentFilePath = filePath
+    currentContent = content
+    currentIsDirty = false
+    currentFileName = getMarkdownFileName(filePath)
     return {
       canceled: false,
       path: filePath,
@@ -76,6 +98,8 @@ function registerFileHandlers(): void {
         throw new Error('当前文档尚未关联文件。')
       }
       await fs.writeFile(currentFilePath, content, 'utf8')
+      currentContent = content
+      currentIsDirty = false
       return {
         canceled: false,
         path: currentFilePath,
@@ -103,6 +127,9 @@ function registerFileHandlers(): void {
       const filePath = ensureMarkdownExtension(result.filePath)
       await fs.writeFile(filePath, content, 'utf8')
       currentFilePath = filePath
+      currentContent = content
+      currentIsDirty = false
+      currentFileName = getMarkdownFileName(filePath)
       return { canceled: false, path: filePath, fileName: getMarkdownFileName(filePath) }
     }
   )
@@ -126,6 +153,52 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+  })
+
+  mainWindow.on('close', (event) => {
+    if (closeApproved || !currentIsDirty) return
+    event.preventDefault()
+    void (async () => {
+      const choice = await dialog.showMessageBox(mainWindow!, {
+        type: 'warning',
+        title: '未保存的修改',
+        message: `“${currentFileName}”有未保存的修改。`,
+        buttons: ['不保存', '保存', '另存', '取消'],
+        cancelId: 3,
+        defaultId: 1,
+        noLink: true
+      })
+      if (choice.response === 3) return
+      if (choice.response === 1 || choice.response === 2) {
+        try {
+          if (choice.response === 1 && currentFilePath) {
+            await fs.writeFile(currentFilePath, currentContent, 'utf8')
+            currentIsDirty = false
+          } else {
+            const result = await dialog.showSaveDialog(mainWindow!, {
+              defaultPath: currentFileName || 'Untitled.md',
+              filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
+            })
+            if (result.canceled || !result.filePath) return
+            const filePath = ensureMarkdownExtension(result.filePath)
+            await fs.writeFile(filePath, currentContent, 'utf8')
+            currentFilePath = filePath
+            currentFileName = getMarkdownFileName(filePath)
+            currentIsDirty = false
+          }
+        } catch (error) {
+          await dialog.showMessageBox(mainWindow!, {
+            type: 'error',
+            title: '保存失败',
+            message: error instanceof Error ? error.message : '无法保存文件。',
+            buttons: ['确定']
+          })
+          return
+        }
+      }
+      closeApproved = true
+      mainWindow?.close()
+    })()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

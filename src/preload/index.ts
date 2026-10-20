@@ -8,7 +8,9 @@ const api: { markdownFile: MarkdownFileApi; versions: AppVersions } = {
     open: () => ipcRenderer.invoke('markdown-file:open'),
     save: (content) => ipcRenderer.invoke('markdown-file:save', content),
     saveAs: (content, defaultFileName) =>
-      ipcRenderer.invoke('markdown-file:save-as', content, defaultFileName)
+      ipcRenderer.invoke('markdown-file:save-as', content, defaultFileName),
+    updateDocument: (content, isDirty, fileName) =>
+      ipcRenderer.send('markdown-file:update-document', content, isDirty, fileName)
   },
   versions: {
     electron: process.versions.electron,
