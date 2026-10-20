@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppVersions, MarkdownFileApi } from '../shared/file-api'
+import type { MarkdownFileApi } from '../shared/file-api'
 
 // Custom APIs for renderer
-const api: { markdownFile: MarkdownFileApi; versions: AppVersions } = {
+const api: { markdownFile: MarkdownFileApi } = {
   markdownFile: {
     newDocument: () => ipcRenderer.invoke('markdown-file:new'),
     open: () => ipcRenderer.invoke('markdown-file:open'),
@@ -11,11 +11,6 @@ const api: { markdownFile: MarkdownFileApi; versions: AppVersions } = {
       ipcRenderer.invoke('markdown-file:save-as', content, defaultFileName),
     updateDocument: (content, isDirty, fileName) =>
       ipcRenderer.send('markdown-file:update-document', content, isDirty, fileName)
-  },
-  versions: {
-    electron: process.versions.electron,
-    chrome: process.versions.chrome,
-    node: process.versions.node
   }
 }
 

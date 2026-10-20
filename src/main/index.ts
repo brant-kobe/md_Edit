@@ -8,6 +8,7 @@ import type {
   OpenMarkdownFileResult,
   SaveMarkdownFileResult
 } from '../shared/file-api'
+import { isAllowedMarkdownUrl } from '../shared/markdown-security'
 
 const NEW_MARKDOWN_FILE_CHANNEL = 'markdown-file:new'
 const OPEN_MARKDOWN_FILE_CHANNEL = 'markdown-file:open'
@@ -21,6 +22,7 @@ let currentContent = ''
 let currentIsDirty = false
 let currentFileName = 'Untitled.md'
 let closeApproved = false
+let closePromptOpen = false
 
 function assertTrustedSender(event: Electron.IpcMainInvokeEvent): void {
   if (!mainWindow || event.sender !== mainWindow.webContents) {
@@ -97,13 +99,15 @@ function registerFileHandlers(): void {
       if (!currentFilePath) {
         throw new Error('当前文档尚未关联文件。')
       }
-      await fs.writeFile(currentFilePath, content, 'utf8')
-      currentContent = content
-      currentIsDirty = false
+      const targetPath = currentFilePath
+      await fs.writeFile(targetPath, content, 'utf8')
+      if (currentFilePath === targetPath && currentContent === content) {
+        currentIsDirty = false
+      }
       return {
         canceled: false,
-        path: currentFilePath,
-        fileName: getMarkdownFileName(currentFilePath)
+        path: targetPath,
+        fileName: getMarkdownFileName(targetPath)
       }
     }
   )
@@ -127,15 +131,20 @@ function registerFileHandlers(): void {
       const filePath = ensureMarkdownExtension(result.filePath)
       await fs.writeFile(filePath, content, 'utf8')
       currentFilePath = filePath
-      currentContent = content
-      currentIsDirty = false
       currentFileName = getMarkdownFileName(filePath)
+      if (currentContent === content) {
+        currentContent = content
+        currentIsDirty = false
+      }
       return { canceled: false, path: filePath, fileName: getMarkdownFileName(filePath) }
     }
   )
 }
 
 function createWindow(): void {
+  closeApproved = false
+  closePromptOpen = false
+
   // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 900,
@@ -156,54 +165,72 @@ function createWindow(): void {
   })
 
   mainWindow.on('close', (event) => {
-    if (closeApproved || !currentIsDirty) return
+    if (closeApproved || !currentIsDirty || closePromptOpen) return
     event.preventDefault()
+    closePromptOpen = true
     void (async () => {
-      const choice = await dialog.showMessageBox(mainWindow!, {
-        type: 'warning',
-        title: '未保存的修改',
-        message: `“${currentFileName}”有未保存的修改。`,
-        buttons: ['不保存', '保存', '另存', '取消'],
-        cancelId: 3,
-        defaultId: 1,
-        noLink: true
-      })
-      if (choice.response === 3) return
-      if (choice.response === 1 || choice.response === 2) {
-        try {
-          if (choice.response === 1 && currentFilePath) {
-            await fs.writeFile(currentFilePath, currentContent, 'utf8')
-            currentIsDirty = false
-          } else {
-            const result = await dialog.showSaveDialog(mainWindow!, {
-              defaultPath: currentFileName || 'Untitled.md',
-              filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
+      try {
+        const choice = await dialog.showMessageBox(mainWindow!, {
+          type: 'warning',
+          title: '未保存的修改',
+          message: `“${currentFileName}”有未保存的修改。`,
+          buttons: ['不保存', '保存', '另存', '取消'],
+          cancelId: 3,
+          defaultId: 1,
+          noLink: true
+        })
+        if (choice.response === 3) return
+        if (choice.response === 1 || choice.response === 2) {
+          try {
+            if (choice.response === 1 && currentFilePath) {
+              const targetPath = currentFilePath
+              const content = currentContent
+              await fs.writeFile(targetPath, content, 'utf8')
+              if (currentFilePath === targetPath && currentContent === content) {
+                currentIsDirty = false
+              }
+            } else {
+              const result = await dialog.showSaveDialog(mainWindow!, {
+                defaultPath: currentFileName || 'Untitled.md',
+                filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
+              })
+              if (result.canceled || !result.filePath) return
+              const filePath = ensureMarkdownExtension(result.filePath)
+              const content = currentContent
+              await fs.writeFile(filePath, content, 'utf8')
+              currentFilePath = filePath
+              currentFileName = getMarkdownFileName(filePath)
+              if (currentContent === content) currentIsDirty = false
+            }
+            if ((choice.response === 1 || choice.response === 2) && currentIsDirty) return
+          } catch (error) {
+            await dialog.showMessageBox(mainWindow!, {
+              type: 'error',
+              title: '保存失败',
+              message: error instanceof Error ? error.message : '无法保存文件。',
+              buttons: ['确定']
             })
-            if (result.canceled || !result.filePath) return
-            const filePath = ensureMarkdownExtension(result.filePath)
-            await fs.writeFile(filePath, currentContent, 'utf8')
-            currentFilePath = filePath
-            currentFileName = getMarkdownFileName(filePath)
-            currentIsDirty = false
+            return
           }
-        } catch (error) {
-          await dialog.showMessageBox(mainWindow!, {
-            type: 'error',
-            title: '保存失败',
-            message: error instanceof Error ? error.message : '无法保存文件。',
-            buttons: ['确定']
-          })
-          return
         }
+        closeApproved = true
+        mainWindow?.close()
+      } finally {
+        closePromptOpen = false
       }
-      closeApproved = true
-      mainWindow?.close()
     })()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    if (isAllowedMarkdownUrl(details.url)) void shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault()
+    if (isAllowedMarkdownUrl(url)) void shell.openExternal(url)
+  })
+  mainWindow.webContents.on('will-redirect', (event) => {
+    event.preventDefault()
   })
 
   // HMR for renderer base on electron-vite cli.

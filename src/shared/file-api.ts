@@ -26,5 +26,3 @@ export type MarkdownFileApi = {
   saveAs: (content: string, defaultFileName?: string) => Promise<SaveMarkdownFileResult>
   updateDocument: (content: string, isDirty: boolean, fileName: string) => void
 }
-
-export type AppVersions = Pick<NodeJS.ProcessVersions, 'electron' | 'chrome' | 'node'>

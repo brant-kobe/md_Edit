@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SaveMarkdownFileResult } from '../../shared/file-api'
 import { MarkdownEditor } from './components/MarkdownEditor'
 import { MarkdownPreview } from './components/MarkdownPreview'
@@ -43,6 +43,7 @@ function App(): React.JSX.Element {
   const [isDark, setIsDark] = useState(false)
   const [showEditor, setShowEditor] = useState(true)
   const [showPreview, setShowPreview] = useState(true)
+  const markdownRef = useRef(markdown)
 
   const wordCount = useMemo(() => {
     const words = markdown.trim().match(/\S+/g)
@@ -58,6 +59,10 @@ function App(): React.JSX.Element {
         ? 'Unsaved changes'
         : operationStatus.message
   const panelCount = Number(showEditor) + Number(showPreview)
+
+  useEffect(() => {
+    markdownRef.current = markdown
+  }, [markdown])
 
   useEffect(() => {
     window.api.markdownFile.updateDocument(markdown, isDirty, fileName)
@@ -121,7 +126,7 @@ function App(): React.JSX.Element {
 
     setFilePath(result.path)
     setFileName(result.fileName)
-    setSavedMarkdown(content)
+    if (markdownRef.current === content) setSavedMarkdown(content)
     setOperationStatus({ kind: 'success', message: '已保存到磁盘' })
   }
 

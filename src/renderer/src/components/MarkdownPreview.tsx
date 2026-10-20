@@ -1,13 +1,8 @@
 import type { ElementType, ReactNode } from 'react'
+import { isAllowedMarkdownUrl } from '../../../shared/markdown-security'
 
 type MarkdownPreviewProps = {
   markdown: string
-}
-
-const linkPattern = /^(https?:\/\/|mailto:)/i
-
-function isSafeLink(href: string): boolean {
-  return linkPattern.test(href.trim())
 }
 
 function renderInline(source: string): ReactNode[] {
@@ -34,7 +29,7 @@ function renderInline(source: string): ReactNode[] {
       nodes.push(<em key={key++}>{renderInline(token.slice(1, -1))}</em>)
     } else {
       const linkMatch = /^\[([^\]]+)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)$/.exec(token)
-      if (linkMatch && isSafeLink(linkMatch[2])) {
+      if (linkMatch && isAllowedMarkdownUrl(linkMatch[2])) {
         nodes.push(
           <a key={key++} href={linkMatch[2]} title={linkMatch[3]}>
             {renderInline(linkMatch[1])}
